@@ -1,64 +1,70 @@
+import axios from "axios";
 import SimpleLightbox from "simplelightbox";
 import "simplelightbox/dist/simple-lightbox.min.css";
+import Notiflix from "notiflix";
+import fetchImages from "./getPhoto.js"; 
 
 const form = document.getElementById("search-form");
 const gallery = document.querySelector(".gallery");
 const loadMoreButton = document.querySelector(".load-more");
+const lightbox = new SimpleLightbox(".gallery a");
 let currentPage = 1;
 let currentQuery = "";
 
-const apiKey = "38960521-7c95dc72765cd5ee1793ac79f"; 
-
-form.addEventListener("submit", (e) => {
+form.addEventListener("submit", async (e) => {
   e.preventDefault();
   const searchQuery = e.target.searchQuery.value;
   if (searchQuery.trim() !== "") {
     currentQuery = searchQuery;
     currentPage = 1;
-    fetchImages(currentQuery, currentPage);
+
+    try {
+      const data = await fetchImages(currentQuery, currentPage);
+      handleImageData(data);
+    } catch (error) {
+      console.error("Error fetching images:", error);
+      Notiflix.Notify.failure('Error fetching images');
+    }
   }
 });
 
-loadMoreButton.addEventListener("click", () => {
+loadMoreButton.addEventListener("click", async () => {
   currentPage++;
-  fetchImages(currentQuery, currentPage);
+  try {
+    const data = await fetchImages(currentQuery, currentPage);
+    handleImageData(data);
+  } catch (error) {
+    console.error("Error fetching images:", error);
+    Notiflix.Notify.failure('Error fetching images');
+  }
 });
 
-function fetchImages(query, page) {
-  const url = `https://pixabay.com/api/?key=${apiKey}&q=${query}&image_type=photo&orientation=horizontal&safesearch=true&page=${page}&per_page=40`;
+function handleImageData(data) {
+  if (data.hits.length === 0) {
+    hideLoadMoreButton();
+    showEndOfResultsMessage();
+  } else {
+    if (currentPage === 1) {
+      clearGallery();
+    }
+    data.hits.forEach(image => {
+      const card = createImageCard(image);
+      gallery.appendChild(card);
+    });
+    refreshLightbox();
+    if (currentPage === 1) {
+      showLoadMoreButton();
+    }
+  }
+}
 
-  fetch(url)
-    .then((response) => response.json())
-    .then((data) => {
-      if (data.hits.length === 0) {
-        showNoResultsMessage();
-        return;
-      }
-
-      if (page === 1) {
-        gallery.innerHTML = "";
-      }
-
-      data.hits.forEach((image) => {
-        const card = createImageCard(image);
-        gallery.appendChild(card);
-      });
-
-      if (data.totalHits <= page * 40) {
-        hideLoadMoreButton();
-        showEndOfResultsMessage();
-      } else {
-        showLoadMoreButton();
-      }
-
-      refreshLightbox();
-      scrollToNextImages();
-    })
-    .catch((error) => console.error("Error fetching images:", error));
+function clearGallery() {
+  gallery.innerHTML = "";
 }
 
 function createImageCard(image) {
-  const card = document.createElement("div");
+  const card = document.createElement("a"); 
+  card.href = image.largeImageURL; 
   card.className = "photo-card";
 
   const img = document.createElement("img");
@@ -81,6 +87,7 @@ function createImageCard(image) {
 
   return card;
 }
+
 
 function showNoResultsMessage() {
   gallery.innerHTML = "";
@@ -106,7 +113,6 @@ function showEndOfResultsMessage() {
 }
 
 function refreshLightbox() {
-  const lightbox = new SimpleLightbox(".gallery a");
   lightbox.refresh();
 }
 
@@ -117,4 +123,7 @@ function scrollToNextImages() {
     behavior: "smooth",
   });
 }
+
+
+
 
